@@ -25,6 +25,8 @@ Where possible, it exits cleanly in response to a SIGINT (ctrl-c).
 #include <event2/util.h>
 #include <event2/event.h>
 
+#include <string>
+
 static const char MESSAGE[] = "Hello World From Server!!!\n";
 
 static const int PORT = 9995;
@@ -35,6 +37,8 @@ static void conn_writecb(struct bufferevent *, void *);
 static void conn_readcb(struct bufferevent *bev, void *user_data);
 static void conn_eventcb(struct bufferevent *, short, void *);
 static void signal_cb(evutil_socket_t, short, void *);
+
+static int g_counter = 0;
 
 int main(int argc, char **argv)
 {
@@ -75,6 +79,10 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	std::string str;
+	str.append("abc\0def", 7);
+	fprintf(stderr, "str.length:%d, str.size:%d, strlen(str):%d\n", str.length(), str.size(), strlen(str.c_str()));
+
 	event_base_dispatch(base);
 
 	evconnlistener_free(listener);
@@ -100,8 +108,9 @@ static void listener_cb(struct evconnlistener *listener, evutil_socket_t fd,
 	}
 	bufferevent_setcb(bev, conn_readcb, conn_writecb, conn_eventcb, NULL);
 	bufferevent_enable(bev, EV_WRITE |EV_READ);
-	bufferevent_write(bev, MESSAGE, strlen(MESSAGE));
-	//FIXME: start a timer!!!
+	
+	struct evbuffer *output = bufferevent_get_output(bev);
+	evbuffer_add_printf(output, "%d from server!!!\n", g_counter);
 	
 }
 
@@ -110,27 +119,26 @@ static void conn_writecb(struct bufferevent *bev, void *user_data)
 	fprintf(stdout, "%s\n", __FUNCTION__);
 
 	struct evbuffer *output = bufferevent_get_output(bev);
-	//if (evbuffer_get_length(output) == 0) {
-	//	printf("flushed answer\n");
-	//	bufferevent_free(bev);
-	//}
+	if (evbuffer_get_length(output) == 0) {
+		//printf("flushed answer\n");
+		//bufferevent_free(bev);
+		evbuffer_add_printf(output, "%d from server!!!\n", ++g_counter);
+	}
 }
 
 static void conn_readcb(struct bufferevent *bev, void *user_data)
 {
 	fprintf(stdout, "%s\n", __FUNCTION__);
 	struct evbuffer *input = bufferevent_get_input(bev);
-	//if (evbuffer_get_length(input) == 0) {
-	//	printf("flushed answer\n");
-	//	bufferevent_free(bev);
-	//}
+
+	if (evbuffer_get_length(input) == 0) {
+		//printf("flushed answer\n");
+		//bufferevent_free(bev);
+	}
 
 	char buf[1024] = { 0 };
 	bufferevent_read(bev, buf, sizeof buf);
 	fprintf(stdout, "buf:%s\n", buf);
-
-	bufferevent_write(bev, MESSAGE, strlen(MESSAGE));
-	
 }
 
 static void conn_eventcb(struct bufferevent *bev, short events, void *user_data)
@@ -138,6 +146,8 @@ static void conn_eventcb(struct bufferevent *bev, short events, void *user_data)
 	fprintf(stdout, "%s\n", __FUNCTION__);
 	if (events & BEV_EVENT_EOF) {
 		printf("Connection closed.\n");
+
+	
 	}
 	else if (events & BEV_EVENT_ERROR) {
 		printf("Got an error on the connection: %s\n",

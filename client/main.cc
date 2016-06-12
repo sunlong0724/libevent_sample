@@ -12,6 +12,7 @@
 
 static const int PORT = 9995;
 static const char MESSAGE[] = "Hello World From Client!!!\n";
+static int g_counter = 0;
 
 void eventcb(struct bufferevent *bev, short events, void *ptr)
 {
@@ -20,9 +21,9 @@ void eventcb(struct bufferevent *bev, short events, void *ptr)
 		/* We're connected to 127.0.0.1:8080.   Ordinarily we'd do
 		something here, like start reading or writing. */
 		fprintf(stdout, "1%s\n", __FUNCTION__);
-		char buf[1024] = { 0 };
-		bufferevent_read(bev, buf, sizeof buf);
-		fprintf(stdout, "buf:%s\n", buf);
+
+		struct evbuffer *output = bufferevent_get_output(bev);
+		evbuffer_add_printf(output, "%d from client!!!\n", g_counter);
 	}
 	else if (events & BEV_EVENT_ERROR) {
 		/* An error occured while connecting. */
@@ -35,10 +36,11 @@ static void conn_writecb(struct bufferevent *bev, void *user_data)
 	fprintf(stdout, "%s\n", __FUNCTION__);
 
 	struct evbuffer *output = bufferevent_get_output(bev);
-	//if (evbuffer_get_length(output) == 0) {
-	//	printf("flushed answer\n");
-	//	bufferevent_free(bev);
-	//}
+	if (evbuffer_get_length(output) == 0) {
+		//printf("flushed answer\n");
+		//bufferevent_free(bev);
+		evbuffer_add_printf(output, "%d from client!!!\n", ++g_counter);
+	}
 }
 
 static void conn_readcb(struct bufferevent *bev, void *user_data)
@@ -50,11 +52,9 @@ static void conn_readcb(struct bufferevent *bev, void *user_data)
 	//	bufferevent_free(bev);
 	//}
 
-	char buf[1024] = {0};
+	char buf[1024] = { 0 };
 	bufferevent_read(bev, buf, sizeof buf);
 	fprintf(stdout, "buf:%s\n", buf);
-
-	bufferevent_write(bev, MESSAGE, strlen(MESSAGE));
 }
 
 int main(int argc, char** argv)
