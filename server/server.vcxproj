@@ -76,7 +76,7 @@
     <LinkIncremental>true</LinkIncremental>
     <OutDir>..\output</OutDir>
     <IntDir>$(OutDir)\$(Platform)\$(ProjectName)\$(Configuration)\</IntDir>
-    <IncludePath>..\..\3rdParty\libevent-2.0.21-stable\include;$(IncludePath)</IncludePath>
+    <IncludePath>..\..\3rdParty\libevent-2.0.21-stable\include;..\std;$(IncludePath)</IncludePath>
     <LibraryPath>..\..\3rdParty\libevent-2.0.21-stable\x64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -148,6 +148,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\std\mrtp.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
