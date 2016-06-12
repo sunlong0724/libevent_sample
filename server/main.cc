@@ -39,8 +39,9 @@ static void conn_readcb(struct bufferevent *bev, void *user_data);
 static void conn_eventcb(struct bufferevent *, short, void *);
 static void signal_cb(evutil_socket_t, short, void *);
 
-
-
+extern "C" {
+	#include "lcthw/RingBuffer.h"
+}
 
 
 #include <thread>
@@ -51,7 +52,7 @@ public:
 	bool init(const char* params) {//FIXME: port and addr!!!
 	}
 	void start(/*_SourceDataCallback ReadNextFrameCallback, _SinkDataCallback WriteFrameCallback*/) {
-		m_send_flag = false;
+		m_ring_buffer = RingBuffer_create(1024 * 1024 * 30);//30Mb
 		m_impl = std::thread(&TransportThread::run, this);
 	}
 	void stop() {
@@ -62,10 +63,13 @@ public:
 		m_impl.join();
 	}
 
-	int32_t send(uint8_t* dest, size_t len) {
-		m_send_buf.emplace_back(std::vector<uint8_t>(dest, dest+len) );
-	
-		return (int32_t)len;
+	int32_t send(uint8_t* buf, size_t len) {
+		//m_send_buf.emplace(std::vector<uint8_t>(dest, dest+len) );
+		int32_t result = RingBuffer_write(m_ring_buffer, (char*)buf, len);
+		if (-1 == result) {
+			fprintf(stderr, "%s failed\n", __FUNCTION__);
+		}
+		return result;
 	}
 
 private:
@@ -78,6 +82,7 @@ private:
 		WSADATA wsa_data;
 		WSAStartup(0x0201, &wsa_data);
 #endif
+
 
 		m_base = event_base_new();
 		if (!m_base) {
@@ -99,18 +104,20 @@ private:
 			return 1;
 		}
 
-		signal_event = evsignal_new(m_base, SIGINT, signal_cb, (void *)this);
+		//signal_event = evsignal_new(m_base, SIGINT, signal_cb, (void *)this);
 
-		if (!signal_event || event_add(signal_event, NULL) < 0) {
-			fprintf(stderr, "Could not create/add a signal event!\n");
-			return 1;
-		}
+		//if (!signal_event || event_add(signal_event, NULL) < 0) {
+		//	fprintf(stderr, "Could not create/add a signal event!\n");
+		//	return 1;
+		//}
 
 		event_base_dispatch(m_base);
 
 		evconnlistener_free(listener);
 		event_free(signal_event);
 		event_base_free(m_base);
+
+		RingBuffer_destroy(m_ring_buffer);
 
 		printf("done\n");
 		return 0;
@@ -119,13 +126,13 @@ private:
 public:
 	struct event_base		*m_base;
 	struct bufferevent		*m_bev;
-	std::deque<std::vector<uint8_t> > m_send_buf;
+	std::queue<std::vector<uint8_t> > m_send_buf;
+	RingBuffer				*m_ring_buffer;
 	struct event			m_tev;
 
 private:
 	//bool					m_exited;
 	std::thread				m_impl;
-	bool					m_send_flag;
 };
 struct timeval lasttime;
 
@@ -152,10 +159,20 @@ static void timeout_cb(evutil_socket_t fd, short event, void *arg)
 	//}
 
 	struct evbuffer *output = bufferevent_get_output(tt->m_bev);
-	if (tt->m_send_buf.size() > 0) {
-		tt->m_send_buf.front();
-		evbuffer_add(output, tt->m_send_buf.front().data(), tt->m_send_buf.front().size());
-		tt->m_send_buf.pop_front();
+	int len = RingBuffer_available_data(tt->m_ring_buffer);
+
+	if (len > 1024*1024) {
+		bstring bs = RingBuffer_gets(tt->m_ring_buffer, 1024 * 1024);
+		evbuffer_add(output, bs->data, bs->slen - 1);
+		bdestroy(bs);
+
+		fprintf(stderr, "send a frame 1MB!\n");
+	}
+	else if(len > 0){
+		bstring bs = RingBuffer_gets(tt->m_ring_buffer, len);
+		evbuffer_add(output, bs->data, bs->slen - 1);
+		bdestroy(bs);
+
 		fprintf(stderr, "send a frame!\n");
 	}
 	else {
@@ -198,22 +215,35 @@ static void conn_writecb(struct bufferevent *bev, void *user_data)
 	{
 		//printf("flushed answer\n");
 		//bufferevent_free(bev);
-		TransportThread* tt = (TransportThread*)user_data;
-		if (tt->m_send_buf.size() > 0) {
-			tt->m_send_buf.front();
-			evbuffer_add(output, tt->m_send_buf.front().data(), tt->m_send_buf.front().size());
-			tt->m_send_buf.pop_front();
-			fprintf(stderr, "send a frame!\n");
-		}
-		else {
-			fprintf(stderr, "No data\n");
-		}
+		//TransportThread* tt = (TransportThread*)user_data;
+
+		//struct evbuffer *output = bufferevent_get_output(tt->m_bev);
+		//int len = RingBuffer_available_data(tt->m_ring_buffer);
+
+		//if (len > 1024 * 1024) {
+		//	bstring bs = RingBuffer_gets(tt->m_ring_buffer, 1024 * 1024);
+		//	evbuffer_add(output, bs->data, bs->slen - 1);
+		//	bdestroy(bs);
+
+		//	fprintf(stderr, "send a frame!\n");
+		//}
+		//else if (len > 0) {
+		//	bstring bs = RingBuffer_gets(tt->m_ring_buffer, len);
+		//	evbuffer_add(output, bs->data, bs->slen - 1);
+		//	bdestroy(bs);
+
+		//	fprintf(stderr, "send a frame!\n");
+		//}
+		//else {
+		//	fprintf(stderr, "No data\n");
+		//}
+
 	}
 }
 
 static void conn_readcb(struct bufferevent *bev, void *user_data)
 {
-	fprintf(stdout, "%s\n", __FUNCTION__);
+	//fprintf(stdout, "%s\n", __FUNCTION__);
 	struct evbuffer *input = bufferevent_get_input(bev);
 
 	if (evbuffer_get_length(input) == 0) {
@@ -223,7 +253,7 @@ static void conn_readcb(struct bufferevent *bev, void *user_data)
 
 	char buf[1024] = { 0 };
 	bufferevent_read(bev, buf, sizeof buf);
-	fprintf(stdout, "buf:%s\n", buf);
+	//fprintf(stdout, "buf:%s\n", buf);
 
 }
 
@@ -251,20 +281,27 @@ static void signal_cb(evutil_socket_t sig, short events, void *user_data)
 	event_base_loopexit(base, &delay);
 }
 
+bool g_running_flag = true;
+void sig_cb(int sig)
+{
+	if (sig == SIGINT) {
+		g_running_flag = false;
+	}
+}
 
 int main(int argc, char **argv)
 {
-
+	signal(SIGINT, sig_cb);
 	TransportThread t;
 	t.start();
 
 	std::string str("abcdefghijklmnopqrstuvwxyz");
-	while (true) {
-		std::this_thread::sleep_for(std::chrono::milliseconds(5));
+	while (g_running_flag) {
+		std::this_thread::sleep_for(std::chrono::seconds(1));
 		t.send((uint8_t*)str.c_str(), str.size());
 	}
 
-	t.join();
+	t.stop();
 
 	printf("done\n");
 	return 0;

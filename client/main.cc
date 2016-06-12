@@ -33,7 +33,7 @@ void eventcb(struct bufferevent *bev, short events, void *ptr)
 
 static void conn_writecb(struct bufferevent *bev, void *user_data)
 {
-	fprintf(stdout, "%s\n", __FUNCTION__);
+	//fprintf(stdout, "%s\n", __FUNCTION__);
 
 	struct evbuffer *output = bufferevent_get_output(bev);
 	if (evbuffer_get_length(output) == 0) {

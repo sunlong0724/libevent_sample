@@ -147,9 +147,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\std\lcthw\bstrlib.c" />
+    <ClCompile Include="..\std\lcthw\ringbuffer.c" />
     <ClCompile Include="main.cc" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\std\lcthw\bstrlib.h" />
+    <ClInclude Include="..\std\lcthw\ringbuffer.h" />
     <ClInclude Include="..\std\mrtp.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
