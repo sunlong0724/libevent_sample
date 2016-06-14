@@ -9,16 +9,9 @@ Where possible, it exits cleanly in response to a SIGINT (ctrl-c).
 #include "TcpServerHandler.h"
 static const int PORT = 9995;
 
-extern "C" {
-	#include "lcthw/RingBuffer.h"
-}
-
 static void conn_writecb(struct bufferevent *bev, void *user_data);
 static void conn_readcb(struct bufferevent *bev, void *user_data);
 static void conn_eventcb(struct bufferevent *bev, short events, void *user_data);
-
-
-
 
 static void timeout_cb(evutil_socket_t fd, short event, void *arg)
 {
@@ -31,8 +24,7 @@ static void timeout_cb(evutil_socket_t fd, short event, void *arg)
 	elapsed = difference.tv_sec +
 		(difference.tv_usec / 1.0e6);
 
-	printf("timeout_cb called at %d: %.3f seconds elapsed.\n",
-		(int)newtime.tv_sec, elapsed);
+	//printf("timeout_cb called at %d: %.3f seconds elapsed.\n",	(int)newtime.tv_sec, elapsed);
 	tt->m_lasttime = newtime;
 
 	int32_t len = RingBuffer_available_data(tt->m_ring_buffer);
@@ -105,7 +97,7 @@ static void conn_readcb(struct bufferevent *bev, void *user_data)
 
 	char buf[1024] = { 0 };
 	bufferevent_read(bev, buf, sizeof buf);
-	//fprintf(stdout, "buf:%s\n", buf);
+	fprintf(stdout, "recv:%s\n", buf);
 
 }
 
