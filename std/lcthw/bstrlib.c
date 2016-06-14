@@ -13,7 +13,9 @@
 
 #if defined (_MSC_VER)
 /* These warnings from MSVC++ are totally pointless. */
+#ifndef _CRT_SECURE_NO_WARNINGS
 # define _CRT_SECURE_NO_WARNINGS
+#endif // !_CRT_SECURE_NO_WARNINGS
 #endif
 
 #include <stdio.h>

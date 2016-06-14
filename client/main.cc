@@ -52,7 +52,7 @@ static void conn_readcb(struct bufferevent *bev, void *user_data)
 	//	bufferevent_free(bev);
 	//}
 
-	char buf[1024] = { 0 };
+	char buf[1024*10] = { 0 };
 	bufferevent_read(bev, buf, sizeof buf);
 	fprintf(stdout, "buf:%s\n", buf);
 }
@@ -90,3 +90,76 @@ int main(int argc, char** argv)
 	event_base_dispatch(base);
 	return 0;
 }
+
+#include <string>
+#include <set>
+#include <thread>
+
+extern "C" {
+#include "lcthw/RingBuffer.h"
+}
+class TcpClientHandler {
+public:
+	int32_t connect(const std::string& ip, const uint16_t port) {
+
+	}
+	int32_t close() {
+
+	}
+	int32_t read(uint8_t* buf, int32_t buf_len) {
+
+	}
+
+	int32_t write(uint8_t* buf, int32_t buf_len) {
+
+	}
+
+	static void start() {
+		if (!m_exited)
+			return;
+		m_impl = std::thread(run);
+	}
+
+private:
+	static int run() {
+		struct event_base *base;
+		struct bufferevent *bev;
+		struct sockaddr_in sin;
+
+#ifdef _WIN32
+		WSADATA wsa_data;
+		WSAStartup(0x0201, &wsa_data);
+#endif
+
+		base = event_base_new();
+
+		memset(&sin, 0, sizeof(sin));
+		sin.sin_family = AF_INET;
+		sin.sin_addr.s_addr = htonl(0x7f000001); /* 127.0.0.1 */
+		sin.sin_port = htons(PORT); /* Port 8080 */
+
+		bev = bufferevent_socket_new(base, -1, BEV_OPT_CLOSE_ON_FREE);
+
+		bufferevent_setcb(bev, conn_readcb, conn_writecb, eventcb, NULL);
+		bufferevent_enable(bev, EV_WRITE | EV_READ);
+
+		if (bufferevent_socket_connect(bev,
+			(struct sockaddr *)&sin, sizeof(sin)) < 0) {
+			/* Error starting connection */
+			bufferevent_free(bev);
+			return -1;
+		}
+
+		event_base_dispatch(base);
+		return 0;
+	}
+
+private:
+	RingBuffer								*m_recv_buffer;
+	RingBuffer								*m_send_buffer;
+	struct bufferevent						*m_bev;
+
+	static  std::set<TcpClientHandler*>		m_clients;
+	static  bool							m_exited;
+	static  std::thread						m_impl;
+};
