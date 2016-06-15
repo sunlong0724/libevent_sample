@@ -39,8 +39,8 @@ static void timeout_cb(evutil_socket_t fd, short event, void *arg)
 
 		for (auto& it : tt->m_bevs) {
 			struct evbuffer *output = bufferevent_get_output(it);
-			evbuffer_add(output, bs->data, bs->slen - 1);
-			fprintf(stderr, "%04d bytes sent(%04d)!!!\n", bs->slen-1, len);
+			evbuffer_add(output, bs->data, bs->slen);
+			//fprintf(stderr, "%04d bytes sent(%04d)!!!\n", bs->slen, len);
 		}
 		bdestroy(bs);
 	}
@@ -57,7 +57,7 @@ static void listener_cb(struct evconnlistener *listener, evutil_socket_t fd,stru
 	struct event_base *base = tt->m_base;
 
 	struct bufferevent* bev;
-	bev = bufferevent_socket_new(base, fd, BEV_OPT_CLOSE_ON_FREE);
+	bev = bufferevent_socket_new(base, fd, BEV_OPT_CLOSE_ON_FREE | BEV_OPT_THREADSAFE);
 	if (!bev) {
 		fprintf(stderr, "Error constructing bufferevent!");
 		event_base_loopbreak(base);
@@ -69,17 +69,17 @@ static void listener_cb(struct evconnlistener *listener, evutil_socket_t fd,stru
 	tt->m_bevs.insert(bev);
 
 	/* Initalize one event */
-	if (tt->m_bevs.size() == 1) {//start a timer!!!
-		struct timeval tv;
-		event_assign(&tt->m_tev, base, -1, EV_PERSIST, timeout_cb, (void*)user_data);
+	//if (tt->m_bevs.size() == 1) {//start a timer!!!
+	//	struct timeval tv;
+	//	event_assign(&tt->m_tev, base, -1, EV_PERSIST, timeout_cb, (void*)user_data);
 
-		evutil_timerclear(&tv);
-		tv.tv_sec = 0;
-		tv.tv_usec = 1000 * MAX_SEND_TIMER;
-		event_add(&tt->m_tev, &tv);
+	//	evutil_timerclear(&tv);
+	//	tv.tv_sec = 0;
+	//	tv.tv_usec = 1000 * MAX_SEND_TIMER;
+	//	event_add(&tt->m_tev, &tv);
 
-		evutil_gettimeofday(&tt->m_lasttime, NULL);
-	}
+	//	evutil_gettimeofday(&tt->m_lasttime, NULL);
+	//}
 }
 
 static void conn_writecb(struct bufferevent *bev, void *user_data)
@@ -115,8 +115,8 @@ static void conn_eventcb(struct bufferevent *bev, short events, void *user_data)
 	TcpServerHandler* tt = (TcpServerHandler*)user_data;
 
 	tt->m_bevs.erase(bev);
-	if (tt->m_bevs.size() == 0)
-		event_del(&tt->m_tev);
+	//if (tt->m_bevs.size() == 0)
+	//	event_del(&tt->m_tev);
 
 	bufferevent_free(bev);
 }
@@ -147,11 +147,12 @@ void TcpServerHandler::stop() {//FIXME: stop it by ctrl+c!!!
 }
 
 int32_t TcpServerHandler::send(uint8_t* buf, size_t len) {
-	int32_t result = RingBuffer_write(m_ring_buffer, (char*)buf, (int)len);
-	if (-1 == result) {
-		fprintf(stderr, "%s failed\n", __FUNCTION__);
+	for (auto& it : m_bevs) {
+		struct evbuffer *output = bufferevent_get_output(it);
+		bufferevent_write(it, buf, len);
+		//fprintf(stderr, "%04d bytes sent(%04d)!!!\n", bs->slen, len);
 	}
-	return result;
+	return len;
 }
 
 int32_t TcpServerHandler::run() {
@@ -164,12 +165,19 @@ int32_t TcpServerHandler::run() {
 	WSAStartup(0x0201, &wsa_data);
 #endif
 
+#ifdef WIN32
+	evthread_use_windows_threads();//win上设置
+#else
+	evthread_use_pthreads();    //unix上设置
+#endif
 
 	m_base = event_base_new();
 	if (!m_base) {
 		fprintf(stderr, "Could not initialize libevent!\n");
 		return 1;
 	}
+	evthread_make_base_notifiable(m_base);
+
 
 	memset(&sin, 0, sizeof(sin));
 	sin.sin_family = AF_INET;

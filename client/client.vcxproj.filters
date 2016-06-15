@@ -15,13 +15,13 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="main.cc">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="..\std\lcthw\bstrlib.c">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="..\std\lcthw\ringbuffer.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="TcpClientHandler.cc">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
@@ -34,6 +34,9 @@
     </ClInclude>
     <ClInclude Include="..\std\lcthw\ringbuffer.h">
       <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="TcpClientHandler.h">
+      <Filter>源文件</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
